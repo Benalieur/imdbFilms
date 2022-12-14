@@ -1,31 +1,33 @@
 import scrapy
 from scrapy.crawler import CrawlerProcess
 
+import datetime as dt
 import os
 
 
-
 try:
-    os.remove("MongoDbFilm/MongoDbFilm/spiders/top_250_film.csv")
+    os.remove("MongoDbFilm/MongoDbFilm/spiders/csv/top_250_film.csv")
     print("top_250_film.csv supprimé.")
 except:
     print('Pas de fichier film csv.')
 
 
 
-max_scraping = 5
-max_acteur = 3
-
 
 class Top250Spider(scrapy.Spider):
     name = "Top250Spider"
     
     allowed_domains = ['imdb.com']
-    start_urls = ['https://www.imdb.com/chart/top/?ref_=nv_mv_250']
     base_url = "https://www.imdb.com/"
+    start_urls = ['https://www.imdb.com/chart/top/?ref_=nv_mv_250']
+
+
+    scraping = 250
+    max_acteur = 80
+
     
     def parse(self, response):
-        for result in response.css('tr > td.titleColumn')[:max_scraping]:
+        for result in response.css('tr > td.titleColumn')[:self.scraping]:
             yield scrapy.Request(url= self.base_url + result.css('a::attr(href)').get(), callback=self.parse_detail)
 
 
@@ -38,7 +40,7 @@ class Top250Spider(scrapy.Spider):
         else:
             original_title = original_title[16:]
 
-        score = response.css('span.sc-7ab21ed2-1::text').get()    
+        score = response.css('span.sc-7ab21ed2-1::text').get()
         score = score + '/10'
 
         annee = response.css('div.sc-80d4314-2>ul>li>span::text').extract()[0]
@@ -48,7 +50,9 @@ class Top250Spider(scrapy.Spider):
             public = 'Tous publics'
         elif public == 'R':
             public = 'Tous publics avec avertissement'
-        elif public == 'TV-Y7-FV':
+        elif public == 'TV-Y':
+            public = '2+'
+        elif public == 'TV-Y7-FV' or public == 'TV-Y7':
             public = '7+'
         elif public == 'GP':
             public = '12+'
@@ -60,10 +64,6 @@ class Top250Spider(scrapy.Spider):
             public = '18+'
             
         time = response.css('div.sc-80d4314-2>ul>li::text').extract()
-        if len(time) > 3:
-            time_minute = str(int(time[0]) * 60 + int(time[3])) + "min"
-        else :
-            time_minute = str(int(time[0])) + "min"
 
         description = response.css('span.sc-16ede01-0.fMPjMP::text').extract()
 
@@ -75,7 +75,7 @@ class Top250Spider(scrapy.Spider):
 
         
         yield scrapy.Request(url= self.base_url + response.xpath('//*[@id="__next"]/main/div/section[1]/section/div[3]/section/section/div[3]/div[2]/div[1]/div[3]/ul/li[3]/a[1]/@href').get(), callback=self.parse_acteur, meta={
-            'title':title,   
+            'title':title,
             'original_title':original_title,
             'score':score,
             'annee':annee,
@@ -103,15 +103,18 @@ class Top250Spider(scrapy.Spider):
 
         list_acteur = response.css('.primary_photo+ td a::text').extract()
         la_liste_acteur = []
-        for acteur in list_acteur[:max_acteur]:
+        if self.max_acteur > len(list_acteur):
+            self.max_acteur = len(list_acteur)
+        for acteur in list_acteur[:self.max_acteur]:
             la_liste_acteur.append(acteur.replace("\n", ""))
 
-            
-        # list_acteur = []
-        # for i in response.xpath('/html/body/div[2]/div/div[2]/div[3]/div[1]/div[1]/div[2]/table[3])'):
-        #     print("#################", response.xpath('/text()'))        
-        #     # list_acteur.append(response.css('tr>td>a::text'))
+        scrap_type = "film"
+
+        date = dt.datetime.now()
+
         yield {
+            'date':date,
+            'scrap_type':scrap_type,
             'title':title,
             'original_title':original_title,
             'genre':genre,
@@ -129,7 +132,7 @@ class Top250Spider(scrapy.Spider):
 process_base = CrawlerProcess(
     settings = {
         'FEEDS':{
-            'MongoDbFilm/MongoDbFilm/spiders/top_250_film.csv':{
+            'MongoDbFilm/MongoDbFilm/spiders/csv/top_250_film.csv':{
                 'format':'csv'
             }
         },
@@ -141,3 +144,4 @@ process_base = CrawlerProcess(
 
 process_base.crawl(Top250Spider)
 process_base.start()
+process_base.stop()
