@@ -41,7 +41,6 @@ class Top250Spider(scrapy.Spider):
             original_title = original_title[16:]
 
         score = response.css('span.sc-7ab21ed2-1::text').get()
-        score = score + '/10'
 
         annee = response.css('div.sc-80d4314-2>ul>li>span::text').extract()[0]
         public = response.css('div.sc-80d4314-2>ul>li>span::text').extract()[1]
